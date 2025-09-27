@@ -1,11 +1,8 @@
 from fastapi import FastAPI
 from src.states.router import router as states_router
 from src.commissions.router import router as commissions_router
+from src.cases.router import router as cases_router
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
 
 app = FastAPI(title="My Feature-Based API", description="API for managing features", version="1.0.0", openapi_tags=[
     {
@@ -34,3 +31,6 @@ def server_health_check():
 #API Routers
 app.include_router(states_router)
 app.include_router(commissions_router)
+app.include_router(cases_router)
+
+

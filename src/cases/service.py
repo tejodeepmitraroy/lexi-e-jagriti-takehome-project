@@ -1,188 +1,509 @@
-from app.models.requests import SearchRequest
-from app.models.responses import CaseOut
 from typing import List
-from app.services.jagriti_client import JagritiClient
-from app.services.case_parser import parse_cases_from_jagriti
+
 from fastapi import HTTPException
 
-async def search_cases_by_case_number(req: SearchRequest) -> List[CaseOut]:
-    """Search cases by case number"""
-    jc = JagritiClient()
+from src.commissions.service import list_commissions
+from .schemas import CaseByCaseNumberRequest, CaseCategoryResponse, CaseDetailsBySearchResponse, CaseResponse, CaseByComplainantRequest, CaseByRespondentRequest, CaseByComplainantAdvocateRequest, CaseByRespondentAdvocateRequest, CaseByIndustryTypeRequest, CaseByJudgeRequest, CaseDetailsBySearchRequest, JudgeList
+from src.states.service import get_all_states
+from src.utils.apiClient import apiClient
+from src.config import global_config
 
-    # 1. resolve state_id and commission_id
-    state_id = await jc.resolve_state_id(req.state)
-    if not state_id:
-        raise HTTPException(status_code=400, detail="State not found")
-    commission_id = await jc.resolve_commission_id(state_id, req.commission)
-    if not commission_id:
-        raise HTTPException(status_code=400, detail="Commission not found")
 
-    # 2. call jagriti search endpoint
-    raw = await jc.search_cases(
-        search_type="CASE_NO",
-        state_id=state_id,
-        commission_id=commission_id,
-        search_value=req.search_value,
-        date_filter="filing_date",
-        restrict_to="DAILY_ORDERS"
-    )
+async def getCaseDetailsBySearch(data:CaseDetailsBySearchRequest) -> CaseDetailsBySearchResponse:
+    body = {
+        "commissionId": data.commissionId,
+        "dateRequestType": data.dateRequestType,
+        "fromDate": data.fromDate,
+        "judgeId": data.judgeId,
+        "page": data.page,
+        "serchType": data.serchType,
+        "serchTypeValue": data.serchTypeValue,
+        "size": data.size,
+        "toDate": data.toDate,
+    }
+    
 
-    # 3. parse & format output
-    cases = parse_cases_from_jagriti(raw)
-    return cases
+    case = await apiClient(global_config.BASE_API_URL+ "/case/caseFilingService/v2/getCaseDetailsBySearchType",method="POST",data=body)
 
-async def search_cases_by_complainant(req: SearchRequest) -> List[CaseOut]:
-    """Search cases by complainant name"""
-    jc = JagritiClient()
+    # Convert the raw API response to our Pydantic model
+    return CaseDetailsBySearchResponse(**case)
 
-    # 1. resolve state_id and commission_id
-    state_id = await jc.resolve_state_id(req.state)
-    if not state_id:
-        raise HTTPException(status_code=400, detail="State not found")
-    commission_id = await jc.resolve_commission_id(state_id, req.commission)
-    if not commission_id:
-        raise HTTPException(status_code=400, detail="Commission not found")
 
-    # 2. call jagriti search endpoint
-    raw = await jc.search_cases(
-        search_type="COMPLAINANT",
-        state_id=state_id,
-        commission_id=commission_id,
-        search_value=req.search_value,
-        date_filter="filing_date",
-        restrict_to="DAILY_ORDERS"
-    )
+async def getCaseCategory():
+    caseCategory = await apiClient(global_config.BASE_API_URL+ "/master/master/v2/caseCategory",method="POST",data={
+        "caseCategoryLevel": 1,
+        "parentCaseCategoryId": 0
+    })
 
-    # 3. parse & format output
-    cases = parse_cases_from_jagriti(raw)
-    return cases
+    return CaseCategoryResponse(**caseCategory)
+    
+async def getJudgeListForHearing(commissionId:int):
+    url = f"{global_config.BASE_API_URL}/master/master/v2/getJudgeListForHearing?commissionId={commissionId}&activeStatus=true"
+    judgeList = await apiClient(url,method="POST",data={})
 
-async def search_cases_by_respondent(req: SearchRequest) -> List[CaseOut]:
-    """Search cases by respondent name"""
-    jc = JagritiClient()
+    return JudgeList(**judgeList)
 
-    # 1. resolve state_id and commission_id
-    state_id = await jc.resolve_state_id(req.state)
-    if not state_id:
-        raise HTTPException(status_code=400, detail="State not found")
-    commission_id = await jc.resolve_commission_id(state_id, req.commission)
-    if not commission_id:
-        raise HTTPException(status_code=400, detail="Commission not found")
+async def search_cases_by_case_number(body:CaseByCaseNumberRequest) -> List[CaseResponse]:
+    state = body.state
+    commission = body.commission
+    fromDate = body.fromDate
+    toDate = body.toDate
+    caseNumber = body.caseNumber
 
-    # 2. call jagriti search endpoint
-    raw = await jc.search_cases(
-        search_type="RESPONDENT",
-        state_id=state_id,
-        commission_id=commission_id,
-        search_value=req.search_value,
-        date_filter="filing_date",
-        restrict_to="DAILY_ORDERS"
-    )
+    try:
+        # get State Data
+        stateData = await get_all_states()
 
-    # 3. parse & format output
-    cases = parse_cases_from_jagriti(raw)
-    return cases
+        StateResult = next((item for item in stateData.data if item.commissionNameEn and item.commissionNameEn.lower() == state.lower()), None)
 
-async def search_cases_by_complainant_advocate(req: SearchRequest) -> List[CaseOut]:
-    """Search cases by complainant advocate"""
-    jc = JagritiClient()
+        if StateResult:
+            commissionId = StateResult.commissionId
 
-    # 1. resolve state_id and commission_id
-    state_id = await jc.resolve_state_id(req.state)
-    if not state_id:
-        raise HTTPException(status_code=400, detail="State not found")
-    commission_id = await jc.resolve_commission_id(state_id, req.commission)
-    if not commission_id:
-        raise HTTPException(status_code=400, detail="Commission not found")
+            commissionData = await list_commissions(commissionId)
+            commissionResult = next((item for item in commissionData.data if item.commissionNameEn and item.commissionNameEn.lower() == commission.lower()), None)
 
-    # 2. call jagriti search endpoint
-    raw = await jc.search_cases(
-        search_type="COMPLAINANT_ADVOCATE",
-        state_id=state_id,
-        commission_id=commission_id,
-        search_value=req.search_value,
-        date_filter="filing_date",
-        restrict_to="DAILY_ORDERS"
-    )
+            if(commissionResult):
+                commissionId = commissionResult.commissionId
+            
+                caseDetails = await getCaseDetailsBySearch(CaseDetailsBySearchRequest(
+                    commissionId=commissionId,
+                    dateRequestType=1,
+                    fromDate=fromDate,
+                    toDate=toDate,
+                    serchType=1,
+                    serchTypeValue=caseNumber,
+                    judgeId="",
+                    page=0,
+                    size=30
+                ))
 
-    # 3. parse & format output
-    cases = parse_cases_from_jagriti(raw)
-    return cases
+                # Convert API response data to CaseResponse format
+                cases = []
+                for case in caseDetails.data:
+                    cases.append(CaseResponse(
+                        case_number=case.caseNumber,
+                        case_stage=case.caseStageName,
+                        filing_date=case.caseFilingDate,
+                        complainant=case.complainantName,
+                        complainant_advocate=case.complainantAdvocateName,
+                        respondent=case.respondentName,
+                        respondent_advocate=case.respondentAdvocateName,
+                        document_link=case.orderDocumentPath
+                    ))
 
-async def search_cases_by_respondent_advocate(req: SearchRequest) -> List[CaseOut]:
-    """Search cases by respondent advocate"""
-    jc = JagritiClient()
+                return cases
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Commission '{commission}' not found for state '{state}'"
+                )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"State '{state}' not found"
+            )
 
-    # 1. resolve state_id and commission_id
-    state_id = await jc.resolve_state_id(req.state)
-    if not state_id:
-        raise HTTPException(status_code=400, detail="State not found")
-    commission_id = await jc.resolve_commission_id(state_id, req.commission)
-    if not commission_id:
-        raise HTTPException(status_code=400, detail="Commission not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-    # 2. call jagriti search endpoint
-    raw = await jc.search_cases(
-        search_type="RESPONDENT_ADVOCATE",
-        state_id=state_id,
-        commission_id=commission_id,
-        search_value=req.search_value,
-        date_filter="filing_date",
-        restrict_to="DAILY_ORDERS"
-    )
+async def search_cases_by_complainant(body: CaseByComplainantRequest) -> List[CaseResponse]:
+    state = body.state
+    commission = body.commission
+    fromDate = body.fromDate
+    toDate = body.toDate
+    complainant = body.complainant
 
-    # 3. parse & format output
-    cases = parse_cases_from_jagriti(raw)
-    return cases
+    try:
+        # get State Data
+        stateData = await get_all_states()
 
-async def search_cases_by_industry_type(req: SearchRequest) -> List[CaseOut]:
-    """Search cases by industry type"""
-    jc = JagritiClient()
+        StateResult = next((item for item in stateData.data if item.commissionNameEn and item.commissionNameEn.lower() == state.lower()), None)
 
-    # 1. resolve state_id and commission_id
-    state_id = await jc.resolve_state_id(req.state)
-    if not state_id:
-        raise HTTPException(status_code=400, detail="State not found")
-    commission_id = await jc.resolve_commission_id(state_id, req.commission)
-    if not commission_id:
-        raise HTTPException(status_code=400, detail="Commission not found")
+        if StateResult:
+            commissionId = StateResult.commissionId
 
-    # 2. call jagriti search endpoint
-    raw = await jc.search_cases(
-        search_type="INDUSTRY_TYPE",
-        state_id=state_id,
-        commission_id=commission_id,
-        search_value=req.search_value,
-        date_filter="filing_date",
-        restrict_to="DAILY_ORDERS"
-    )
+            commissionData = await list_commissions(commissionId)
+            commissionResult = next((item for item in commissionData.data if item.commissionNameEn and item.commissionNameEn.lower() == commission.lower()), None)
 
-    # 3. parse & format output
-    cases = parse_cases_from_jagriti(raw)
-    return cases
+            if(commissionResult):
+                commissionId = commissionResult.commissionId
+            
+                caseDetails = await getCaseDetailsBySearch(CaseDetailsBySearchRequest(
+                    commissionId=commissionId,
+                    dateRequestType=1,
+                    fromDate=fromDate,
+                    toDate=toDate,
+                    serchType=2,
+                    serchTypeValue=complainant,
+                    judgeId="",
+                    page=0,
+                    size=30
+                ))
 
-async def search_cases_by_judge(req: SearchRequest) -> List[CaseOut]:
-    """Search cases by judge name"""
-    jc = JagritiClient()
+                # Convert API response data to CaseResponse format
+                cases = []
+                for case in caseDetails.data:
+                    cases.append(CaseResponse(
+                        case_number=case.caseNumber,
+                        case_stage=case.caseStageName,
+                        filing_date=case.caseFilingDate,
+                        complainant=case.complainantName,
+                        complainant_advocate=case.complainantAdvocateName,
+                        respondent=case.respondentName,
+                        respondent_advocate=case.respondentAdvocateName,
+                        document_link=case.orderDocumentPath
+                    ))
 
-    # 1. resolve state_id and commission_id
-    state_id = await jc.resolve_state_id(req.state)
-    if not state_id:
-        raise HTTPException(status_code=400, detail="State not found")
-    commission_id = await jc.resolve_commission_id(state_id, req.commission)
-    if not commission_id:
-        raise HTTPException(status_code=400, detail="Commission not found")
+                return cases
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Commission '{commission}' not found for state '{state}'"
+                )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"State '{state}' not found"
+            )
 
-    # 2. call jagriti search endpoint
-    raw = await jc.search_cases(
-        search_type="JUDGE",
-        state_id=state_id,
-        commission_id=commission_id,
-        search_value=req.search_value,
-        date_filter="filing_date",
-        restrict_to="DAILY_ORDERS"
-    )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+   
+async def search_cases_by_respondent(body: CaseByRespondentRequest) -> List[CaseResponse]:
+    state = body.state
+    commission = body.commission
+    fromDate = body.fromDate
+    toDate = body.toDate
+    respondent = body.respondent
 
-    # 3. parse & format output
-    cases = parse_cases_from_jagriti(raw)
-    return cases
+    try:
+        # get State Data
+        stateData = await get_all_states()
+
+        StateResult = next((item for item in stateData.data if item.commissionNameEn and item.commissionNameEn.lower() == state.lower()), None)
+
+        if StateResult:
+            commissionId = StateResult.commissionId
+
+            commissionData = await list_commissions(commissionId)
+            commissionResult = next((item for item in commissionData.data if item.commissionNameEn and item.commissionNameEn.lower() == commission.lower()), None)
+
+            if(commissionResult):
+                commissionId = commissionResult.commissionId
+            
+                caseDetails = await getCaseDetailsBySearch(CaseDetailsBySearchRequest(
+                    commissionId=commissionId,
+                    dateRequestType=1,
+                    fromDate=fromDate,
+                    toDate=toDate,
+                    serchType=3,
+                    serchTypeValue=respondent,
+                    judgeId="",
+                    page=0,
+                    size=30
+                ))
+
+                # Convert API response data to CaseResponse format
+                cases = []
+                for case in caseDetails.data:
+                    cases.append(CaseResponse(
+                        case_number=case.caseNumber,
+                        case_stage=case.caseStageName,
+                        filing_date=case.caseFilingDate,
+                        complainant=case.complainantName,
+                        complainant_advocate=case.complainantAdvocateName,
+                        respondent=case.respondentName,
+                        respondent_advocate=case.respondentAdvocateName,
+                        document_link=case.orderDocumentPath
+                    ))
+
+                return cases
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Commission '{commission}' not found for state '{state}'"
+                )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"State '{state}' not found"
+            )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+   
+
+async def search_cases_by_complainant_advocate(body: CaseByComplainantAdvocateRequest) -> List[CaseResponse]:
+    state = body.state
+    commission = body.commission
+    fromDate = body.fromDate
+    toDate = body.toDate
+    complainantAdvocate = body.complainantAdvocate
+
+    try:
+        # get State Data
+        stateData = await get_all_states()
+
+        StateResult = next((item for item in stateData.data if item.commissionNameEn and item.commissionNameEn.lower() == state.lower()), None)
+
+        if StateResult:
+            commissionId = StateResult.commissionId
+
+            commissionData = await list_commissions(commissionId)
+            commissionResult = next((item for item in commissionData.data if item.commissionNameEn and item.commissionNameEn.lower() == commission.lower()), None)
+
+            if(commissionResult):
+                commissionId = commissionResult.commissionId
+            
+                caseDetails = await getCaseDetailsBySearch(CaseDetailsBySearchRequest(
+                    commissionId=commissionId,
+                    dateRequestType=1,
+                    fromDate=fromDate,
+                    toDate=toDate,
+                    serchType=4,
+                    serchTypeValue=complainantAdvocate,
+                    judgeId="",
+                    page=0,
+                    size=30
+                ))
+
+                # Convert API response data to CaseResponse format
+                cases = []
+                for case in caseDetails.data:
+                    cases.append(CaseResponse(
+                        case_number=case.caseNumber,
+                        case_stage=case.caseStageName,
+                        filing_date=case.caseFilingDate,
+                        complainant=case.complainantName,
+                        complainant_advocate=case.complainantAdvocateName,
+                        respondent=case.respondentName,
+                        respondent_advocate=case.respondentAdvocateName,
+                        document_link=case.orderDocumentPath
+                    ))
+
+                return cases
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Commission '{commission}' not found for state '{state}'"
+                )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"State '{state}' not found"
+            )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def search_cases_by_respondent_advocate(req: CaseByRespondentAdvocateRequest) -> List[CaseResponse]:
+    state = req.state
+    commission = req.commission
+    fromDate = req.fromDate
+    toDate = req.toDate
+    respondentAdvocate = req.respondentAdvocate
+
+    try:
+        # get State Data
+        stateData = await get_all_states()
+
+        StateResult = next((item for item in stateData.data if item.commissionNameEn and item.commissionNameEn.lower() == state.lower()), None)
+
+        if StateResult:
+            commissionId = StateResult.commissionId
+
+            commissionData = await list_commissions(commissionId)
+            commissionResult = next((item for item in commissionData.data if item.commissionNameEn and item.commissionNameEn.lower() == commission.lower()), None)
+
+            if(commissionResult):
+                commissionId = commissionResult.commissionId
+            
+                caseDetails = await getCaseDetailsBySearch(CaseDetailsBySearchRequest(
+                    commissionId=commissionId,
+                    dateRequestType=1,
+                    fromDate=fromDate,
+                    toDate=toDate,
+                    serchType=5,
+                    serchTypeValue=respondentAdvocate,
+                    judgeId="",
+                    page=0,
+                    size=30
+                ))
+
+                # Convert API response data to CaseResponse format
+                cases = []
+                for case in caseDetails.data:
+                    cases.append(CaseResponse(
+                        case_number=case.caseNumber,
+                        case_stage=case.caseStageName,
+                        filing_date=case.caseFilingDate,
+                        complainant=case.complainantName,
+                        complainant_advocate=case.complainantAdvocateName,
+                        respondent=case.respondentName,
+                        respondent_advocate=case.respondentAdvocateName,
+                        document_link=case.orderDocumentPath
+                    ))
+
+                return cases
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Commission '{commission}' not found for state '{state}'"
+                )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"State '{state}' not found"
+            )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+ 
+async def search_cases_by_industry_type(req: CaseByIndustryTypeRequest) -> List[CaseResponse]:
+    state = req.state
+    commission = req.commission
+    fromDate = req.fromDate
+    toDate = req.toDate
+    industryType = req.industryType
+    try:
+
+        caseCategory = await getCaseCategory()
+
+        CaseIndustryTypeResult = next((item for item in caseCategory.data if item.caseCategoryNameEn and item.caseCategoryNameEn.lower() == industryType.lower()), None)
+
+
+        if(CaseIndustryTypeResult):
+            # get State Data
+            stateData = await get_all_states()
+
+            StateResult = next((item for item in stateData.data if item.commissionNameEn and item.commissionNameEn.lower() == state.lower()), None)
+
+            if StateResult:
+                commissionId = StateResult.commissionId
+
+                commissionData = await list_commissions(commissionId)
+                commissionResult = next((item for item in commissionData.data if item.commissionNameEn and item.commissionNameEn.lower() == commission.lower()), None)
+
+                if(commissionResult):
+                    commissionId = commissionResult.commissionId
+
+
+                
+                    caseDetails = await getCaseDetailsBySearch(CaseDetailsBySearchRequest(
+                        commissionId=commissionId,
+                        dateRequestType=2,
+                        fromDate=fromDate,
+                        toDate=toDate,
+                        serchType=6,
+                        serchTypeValue=6,
+                        judgeId="",
+                        page=0,
+                        size=30
+                    ))
+
+                    # Convert API response data to CaseResponse format
+                    cases = []
+                    for case in caseDetails.data:
+                        cases.append(CaseResponse(
+                            case_number=case.caseNumber,
+                            case_stage=case.caseStageName,
+                            filing_date=case.caseFilingDate,
+                            complainant=case.complainantName,
+                            complainant_advocate=case.complainantAdvocateName,
+                            respondent=case.respondentName,
+                            respondent_advocate=case.respondentAdvocateName,
+                            document_link=case.orderDocumentPath
+                        ))
+
+                    return cases
+                else:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Commission '{commission}' not found for state '{state}'"
+                    )
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"State '{state}' not found"
+                ) 
+        else:
+            validIndustryType = [ case.caseCategoryNameEn for case in caseCategory.data if case.caseCategoryNameEn ] 
+            raise HTTPException(
+                status_code=400,
+                detail=f"Industry Type '{industryType}' not found please enter valid industry type from list:{validIndustryType}"
+            )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+ 
+async def search_cases_by_judge(req: CaseByJudgeRequest) -> List[CaseResponse]:
+   
+    state = req.state
+    commission = req.commission
+    fromDate = req.fromDate
+    toDate = req.toDate
+    judgeName = req.judge
+    try:
+
+        # get State Data
+        stateData = await get_all_states()
+
+        StateResult = next((item for item in stateData.data if item.commissionNameEn and item.commissionNameEn.lower() == state.lower()), None)
+
+        if StateResult:
+            commissionId = StateResult.commissionId
+
+            commissionData = await list_commissions(commissionId)
+            commissionResult = next((item for item in commissionData.data if item.commissionNameEn and item.commissionNameEn.lower() == commission.lower()), None)
+
+            if(commissionResult):
+                commissionId = commissionResult.commissionId
+
+                judgeList = await getJudgeListForHearing(commissionId)
+                judgeResult = next((item for item in judgeList.data if item.judgeName and item.judgeName.lower() == judgeName.lower()), None)
+
+
+                if(judgeResult):
+                    
+                    caseDetails = await getCaseDetailsBySearch(CaseDetailsBySearchRequest(
+                        commissionId=commissionId,
+                        dateRequestType=2,
+                        fromDate=fromDate,
+                        toDate=toDate,
+                        serchType=7,
+                        serchTypeValue=7,
+                        judgeId=judgeResult.judgeId,
+                        page=0,
+                        size=30
+                    ))
+
+                    # Convert API response data to CaseResponse format
+                    cases = []
+                    for case in caseDetails.data:
+                        cases.append(CaseResponse(
+                            case_number=case.caseNumber,
+                            case_stage=case.caseStageName,
+                            filing_date=case.caseFilingDate,
+                            complainant=case.complainantName,
+                            complainant_advocate=case.complainantAdvocateName,
+                            respondent=case.respondentName,
+                            respondent_advocate=case.respondentAdvocateName,
+                            document_link=case.orderDocumentPath
+                        ))
+
+                    return cases
+                else:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Judge '{judgeName}' not found for commission '{commission}' "
+                    )
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Commission '{commission}' not found for state '{state}'"
+                )
+        else:
+            raise HTTPException(status_code=400,detail=f"State '{state}' not found")      
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+   
+
