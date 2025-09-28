@@ -1,7 +1,9 @@
-from src.commissions.schemas import CommissionResponse
-from src.utils.apiClient import apiClient
-from src.config import global_config
 
-async def list_commissions(commission_id: int):
+from src.core.config import global_config
+from src.utils.apiClient import apiClient
+from .model import CommissionResponse
+
+
+async def fetch_commission_by_commission_id(commission_id: int):
     data = await apiClient(global_config.BASE_API_URL+ "/report/report/getDistrictCommissionByCommissionId?commissionId=" + str(commission_id)) 
-    return CommissionResponse(**data)
+    return  CommissionResponse(**data)

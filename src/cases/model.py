@@ -7,7 +7,7 @@ class CaseResponse(BaseModel):
     filing_date: str   # ISO date
     complainant: str
     complainant_advocate: str | None
-    respondent: str
+    respondent: str | None
     respondent_advocate: str | None
     document_link: str | None
 
@@ -27,7 +27,7 @@ class CaseData(BaseModel):
     caseNumber: str
     complainantName: str
     complainantAdvocateName: Optional[str] = None
-    respondentName: str
+    respondentName: Optional[str] = None
     respondentAdvocateName: Optional[str] = None
     caseFilingDate: str
     orderDocumentPath: Optional[str] = None
@@ -47,10 +47,10 @@ class CaseData(BaseModel):
     judgmentOrderDocumentBase64: Optional[str] = None
 
 class CaseDetailsBySearchResponse(BaseModel):
-    message: Optional[str] = None
+    message: str
     status: int
-    data: Optional[List[CaseData]] = None
-    error: Optional[str] = None
+    data: List[CaseData]
+    error: str
 
 
 class CaseIndustryType(BaseModel):
@@ -85,42 +85,49 @@ class JudgeList(BaseModel):
 class CaseByCaseNumberRequest(BaseModel):
     state:str
     commission:str
+    caseDateType:str
     fromDate:str
     toDate:str
     caseNumber:str
 class CaseByComplainantRequest(BaseModel):
     state:str
     commission:str
+    caseDateType:str
     fromDate:str
     toDate:str
     complainant:str
 class CaseByRespondentRequest(BaseModel):
     state:str
     commission:str
+    caseDateType:str
     fromDate:str
     toDate:str
     respondent:str
 class CaseByComplainantAdvocateRequest(BaseModel):
     state:str
     commission:str
+    caseDateType:str
     fromDate:str
     toDate:str
     complainantAdvocate:str
 class CaseByRespondentAdvocateRequest(BaseModel):
     state:str
     commission:str
+    caseDateType:str
     fromDate:str
     toDate:str
     respondentAdvocate:str
 class CaseByIndustryTypeRequest(BaseModel):
     state:str
     commission:str
+    caseDateType:str
     fromDate:str
     toDate:str
     industryType:str
 class CaseByJudgeRequest(BaseModel):
     state:str
     commission:str
+    caseDateType:str
     fromDate:str
     toDate:str
-    judge:str
+    judge:str | int

@@ -1,9 +1,10 @@
 from fastapi import APIRouter
-from .service import get_all_states
+from src.core.model import ApiResponse
+from .controller import get_all_states
 
 router = APIRouter(prefix="/states", tags=["states"])
 
-@router.get("/")
+@router.get("/", response_model=ApiResponse)
 async def fetch_states():
     return await get_all_states()
 
