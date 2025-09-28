@@ -1,7 +1,7 @@
 from fastapi import FastAPI
-from src.states.router import router as states_router
-from src.commissions.router import router as commissions_router
-from src.cases.router import router as cases_router
+from src.features.states.router import router as states_router
+from src.features.commissions.router import router as commissions_router
+from src.features.cases.router import router as cases_router
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="My Feature-Based API", description="API for managing features", version="1.0.0", openapi_tags=[

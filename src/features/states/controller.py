@@ -1,7 +1,7 @@
 from fastapi import HTTPException
-from src.core.model import ApiError, ApiResponse
-from src.states.service import fetch_all_states
-from .model import StateCommissionResponse
+from src.core.model import ApiResponse
+from .service import fetch_all_states
+
 
 
 

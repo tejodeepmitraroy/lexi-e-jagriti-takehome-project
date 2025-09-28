@@ -1,11 +1,9 @@
 from typing import List
-
 from fastapi import HTTPException
-
 from src.core.model import ApiResponse
-from src.commissions.service import  fetch_commission_by_commission_id
+from src.features.commissions.service import  fetch_commission_by_commission_id
 from .model import CaseResponse, CaseByCaseNumberRequest, CaseByComplainantRequest, CaseByRespondentRequest, CaseByComplainantAdvocateRequest, CaseByRespondentAdvocateRequest, CaseByIndustryTypeRequest, CaseByJudgeRequest, CaseDetailsBySearchRequest
-from src.states.service import fetch_all_states
+from src.features.states.service import fetch_all_states
 from .service import get_case_category, get_case_details_by_search, get_judge_list_for_hearing
 
 async def search_cases_by_case_number(body:CaseByCaseNumberRequest):
